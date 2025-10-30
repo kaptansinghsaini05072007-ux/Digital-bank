@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Bank - UPI Payments</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/qrcode.react@3.1.0/dist/qrcode.react.js"></script>
+    <style>
+        :root {
+            --primary-purple: #6F1EB2;
+            --secondary-purple: #8E35FF;
+            --light-purple: #F3E5F5;
+            --success-green: #00D200;
+            --white: #FFFFFF;
+            --text-dark: #333333;
+            --text-light: #666666;
+            --background: #F8F9FA;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+
+        body {
+            background: var(--background);
+            color: var(--text-dark);
+        }
+
+        /* Login Styles */
+        .login-container {
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--primary-purple), var(--secondary-purple));
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: var(--white);
+        }
+
+        .login-header h2 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .login-form {
+            background: var(--white);
+            padding: 30px;
+            border-radius: 20px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, var(--primary-purple), var(--secondary-purple));
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* Dashboard Styles */
+        .dashboard-container {
+            min-height: 100vh;
+            background: var(--background);
+            padding: 20px;
+            padding-bottom: 80px;
+        }
+
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .balance-card {
+            background: linear-gradient(135deg, var(--primary-purple), var(--secondary-purple));
+            color: white;
+            padding: 25px;
+            border-radius: 20px;
+            margin-bottom: 30px;
+        }
+
+        .balance-amount {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .action-btn {
+            background: var(--white);
+            padding: 20px 10px;
+            border-radius: 15px;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        /* Bottom Navigation */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--white);
+            display: flex;
+            justify-content: space-around;
+            padding: 15px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .nav-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, createContext, useContext } = React;
+
+        // Auth Context
+        const AuthContext = createContext();
+
+        const AuthProvider = ({ children }) => {
+            const [user, setUser] = useState(null);
+            const [users, setUsers] = useState([]);
+
+            useEffect(() => {
+                // Load users from localStorage
+                const savedUsers = localStorage.getItem('digitalBankUsers');
+                if (savedUsers) {
+                    setUsers(JSON.parse(savedUsers));
+                } else {
+                    // Demo users
+                    const demoUsers = [
+                        {
+                            id: 1,
+                            name: "Rahul Sharma",
+                            email: "rahul@test.com",
+                            password: "123456",
+                            upiId: "rahul@digitalbank",
+                            balance: 10000,
+                            transactions: []
+                        },
+                        {
+                            id: 2, 
+                            name: "Priya Patel",
+                            email: "priya@test.com",
+                            password: "123456",
+                            upiId: "priya@digitalbank", 
+                            balance: 10000,
+                            transactions: []
+                        }
+                    ];
+                    setUsers(demoUsers);
+                    localStorage.setItem('digitalBankUsers', JSON.stringify(demoUsers));
+                }
+            }, []);
+
+            const signup = (name, email, password) => {
+                const newUser = {
+                    id: Date.now(),
+                    name,
+                    email,
+                    password,
+                    upiId: `${name.toLowerCase().replace(' ', '')}@digitalbank`,
+                    balance: 10000,
+                    transactions: []
+                };
+                const updatedUsers = [...users, newUser];
+                setUsers(updatedUsers);
+                setUser(newUser);
+                localStorage.setItem('digitalBankUsers', JSON.stringify(updatedUsers));
+            };
+
+            const login = (email, password) => {
+                const foundUser = users.find(u => u.email === email && u.password === password);
+                if (foundUser) {
+                    setUser(foundUser);
+                    return true;
+                }
+                return false;
+            };
+
+            return (
+                <AuthContext.Provider value={{ user, users, setUsers, signup, login, setUser }}>
+                    {children}
+                </AuthContext.Provider>
+            );
+        };
+
+        // Login Component
+        const Login = ({ onSwitchToSignup }) => {
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const { login } = useContext(AuthContext);
+
+            const handleLogin = (e) => {
+                e.preventDefault();
+                if (login(email, password)) {
+                    alert('Login successful!');
+                } else {
+                    alert('Invalid email or password!');
+                }
+            };
+
+            return (
+                <div className="login-container">
+                    <div className="login-header">
+                        <h2>Digital Bank</h2>
+                        <p>Welcome to Secure UPI Payments</p>
+                    </div>
+                    
+                    <form onSubmit={handleLogin} className="login-form">
+                        <div className="input-group">
+                            <input
+                                type="email"
+                                placeholder="Email address"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                            />
+                        </div>
+                        
+                        <div className="input-group">
+                            <input
+                                type="password"
+                                placeholder="Password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                            />
+                        </div>
+
+                        <button type="submit" className="login-btn">
+                            Login
+                        </button>
+                    </form>
+
+                    <div style={{ color: 'white', marginTop: '20px', textAlign: 'center' }}>
+                        <p>Don't have an account? 
+                            <span onClick={onSwitchToSignup} style={{ color: '#FFD700', cursor: 'pointer', marginLeft: '5px' }}>
+                                Sign up
+                            </span>
+                        </p>
+                        <p style={{ fontSize: '0.9rem', marginTop: '10px' }}>
+                            Demo: rahul@test.com / 123456
+                        </p>
+                    </div>
+                </div>
+            );
+        };
+
+        // Signup Component
+        const Signup = ({ onSwitchToLogin }) => {
+            const [formData, setFormData] = useState({
+                name: '',
+                email: '',
+                password: '',
+                confirmPassword: ''
+            });
+            const { signup } = useContext(AuthContext);
+
+            const handleChange = (e) => {
+                setFormData({
+                    ...formData,
+                    [e.target.name]: e.target.value
+                });
+            };
+
+            const handleSignup = (e) => {
+                e.preventDefault();
+                if (formData.password !== formData.confirmPassword) {
+                    alert("Passwords don't match!");
+                    return;
+                }
+                signup(formData.name, formData.email, formData.password);
+                alert('Account created successfully!');
+            };
+
+            return (
+                <div className="login-container">
+                    <div className="login-header">
+                        <h2>Create Account</h2>
+                        <p>Join Digital Bank Today</p>
+                    </div>
+                    
+                    <form onSubmit={handleSignup} className="login-form">
+                        <div className="input-group">
+                            <input
+                                type="text"
+                                name="name"
+                                placeholder="Full Name"
+                                value={formData.name}
+                                onChange={handleChange}
+                                required
+                            />
+                        </div>
+                        
+                        <div className="input-group">
+                            <input
+                                type="email"
+                                name="email"
+                                placeholder="Email address"
+                                value={formData.email}
+                                onChange={handleChange}
+                                required
+                            />
+                        </div>
+                        
+                        <div className="input-group">
+                            <input
+                                type="password"
+                                name="password"
+                                placeholder="Password"
+                                value={formData.password}
+                                onChange={handleChange}
+                                required
+                            />
+                        </div>
+
+                        <div className="input-group">
+                            <input
+                                type="password"
+                                name="confirmPassword"
+                                placeholder="Confirm Password"
+                                value={formData.confirmPassword}
+                                onChange={handleChange}
+                                required
+                            />
+                        </div>
+
+                        <button type="submit" className="login-btn">
+                            Create Account
+                        </button>
+                    </form>
+
+                    <div style={{ color: 'white', marginTop: '20px', textAlign: 'center' }}>
+                        <p>Already have an account? 
+                            <span onClick={onSwitchToLogin} style={{ color: '#FFD700', cursor: 'pointer', marginLeft: '5px' }}>
+                                Login
+                            </span>
+                        </p>
+                    </div>
+                </div>
+            );
+        };
+
+        // Dashboard Component
+        const Dashboard = () => {
+            const { user } = useContext(AuthContext);
+
+            return (
+                <div className="dashboard-container">
+                    {/* Header */}
+                    <div className="dashboard-header">
+                        <div>
+                            <h3>Hello, {user?.name}</h3>
+                            <p>UPI: {user?.upiId}</p>
+                        </div>
+                        <div style={{ width: '50px', height: '50px', background: '#6F1EB2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                            👤
+                        </div>
+                    </div>
+
+                    {/* Balance Card */}
+                    <div className="balance-card">
+                        <div>Available Balance</div>
+                        <div className="balance-amount">₹{user?.balance}</div>
+                        <div style={{ fontSize: '0.8rem', opacity: '0.8' }}>+ 10,000 coins welcome bonus</div>
+                    </div>
+
+                    {/* Quick Actions */}
+                    <div className="quick-actions">
+                        <div className="action-btn">
+                            <div style={{ fontSize: '1.5rem', marginBottom: '8px' }}>📤</div>
+                            <span>Send</span>
+                        </div>
+                        <div className="action-btn">
+                            <div style={{ fontSize: '1.5rem', marginBottom: '8px' }}>📥</div>
+                            <span>Receive</span>
+                        </div>
+                        <div className="action-btn">
+                            <div style={{ fontSize: '1.5rem', marginBottom: '8px' }}>📊</div>
+                            <span>History</span>
+                        </div>
+                        <div className="action-btn">
+                            <div style={{ fontSize: '1.5rem', marginBottom: '8px' }}>📷</div>
+                            <span>Scan</span>
+                        </div>
+                    </div>
+
+                    {/* Recent Transactions */}
+                    <div style={{ background: 'white', padding: '20px', borderRadius: '15px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+                            <h4>Recent Transactions</h4>
+                            <span style={{ color: '#6F1EB2' }}>View All</span>
+                        </div>
+                        
+                        {user?.transactions?.length > 0 ? (
+                            user.transactions.slice(0, 3).map(transaction => (
+                                <div key={transaction.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 0', borderBottom: '1px solid #f0f0f0' }}>
+                                    <div>
+                                        <div style={{ fontWeight: '500' }}>
+                                            {transaction.type === 'sent' ? 'To: ' : 'From: '}
+                                            {transaction.to}
+                                        </div>
+                                        <div style={{ color: '#666', fontSize: '0.8rem' }}>{transaction.date}</div>
+                                    </div>
+                                    <div style={{ fontWeight: 'bold', color: transaction.type === 'sent' ? '#ff4444' : '#00D200' }}>
+                                        {transaction.type === 'sent' ? '-' : '+'}₹{transaction.amount}
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div style={{ textAlign: 'center', color: '#666', padding: '40px 0' }}>
+                                No transactions yet
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // Main App Component
+        const App = () => {
+            const [currentView, setCurrentView] = useState('login');
+
+            const renderView = () => {
+                switch (currentView) {
+                    case 'login':
+                        return <Login onSwitchToSignup={() => setCurrentView('signup')} />;
+                    case 'signup':
+                        return <Signup onSwitchToLogin={() => setCurrentView('login')} />;
+                    case 'dashboard':
+                        return <Dashboard />;
+                    default:
+                        return <Login onSwitchToSignup={() => setCurrentView('signup')} />;
+                }
+            };
+
+            return (
+                <AuthProvider>
+                    {renderView()}
+                    
+                    {/* Bottom Navigation */}
+                    {currentView === 'dashboard' && (
+                        <div className="bottom-nav">
+                            <button className="nav-btn" onClick={() => setCurrentView('dashboard')}>🏠</button>
+                            <button className="nav-btn">📤</button>
+                            <button className="nav-btn">📥</button>
+                            <button className="nav-btn">📊</button>
+                        </div>
+                    )}
+                </AuthProvider>
+            );
+        };
+
+        // Render the App
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
